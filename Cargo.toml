@@ -14,17 +14,27 @@ keywords = ["metrics", "cloudwatch", "aws"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# FORK NOTE:
+# Many of the dep here have had their version requirements softened, to allow
+# the importing crate to define dep versions. This may cause this library to fail
+# to compile, if the deps get out of sync.
+
 [dependencies]
 ahash = "0.8"
 chrono = "0.4.13"
-futures-util = { version = "0.3.5", default-features = false }
+futures-util = { version = "0.3" }
 log = "0.4.11"
-metrics = { version = "0.16", features = ["std"] }
+metrics = { version = "*", features = ["std"] }
 ordered-float = "2"
-rand = { version = "0.8", default-features = false, features = ["small_rng", "std", "std_rng"] }
-aws-sdk-cloudwatch = "0.21"
-aws-config = "0.51.0"
-aws-smithy-types-convert = {version = "0.51", features = ["convert-chrono"]}
+rand = { version = "0.8", default-features = false, features = [
+    "small_rng",
+    "std",
+    "std_rng",
+] }
+aws-types = "*"
+aws-sdk-cloudwatch = "*"
+aws-config = "*"
+aws-smithy-types-convert = { version = "*", features = ["convert-chrono"] }
 serde_json = "1"
 tokio = { version = "1", features = ["sync", "time"] }
 
