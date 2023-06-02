@@ -1,9 +1,11 @@
 use std::{
     collections::BTreeMap,
+    convert::TryFrom,
     fmt,
     future::Future,
     mem,
     pin::Pin,
+    sync::Arc,
     task::Poll,
     thread,
     time::{self, Duration, SystemTime},
@@ -25,6 +27,9 @@ use {
     metrics::{GaugeValue, Key, Recorder, Unit},
     tokio::sync::mpsc,
 };
+
+use metrics::{CounterFn, GaugeFn, HistogramFn, KeyName};
+use ordered_float::NotNan;
 
 use crate::{error::Error, BoxFuture};
 
@@ -99,7 +104,7 @@ enum Message {
 enum Value {
     Register {
         unit: Option<Unit>,
-        description: Option<&'static str>,
+        description: metrics::SharedString,
     },
     Counter(u64),
     Gauge(GaugeValue),
@@ -135,7 +140,7 @@ struct Collector {
 #[derive(Clone, Debug, Default)]
 struct MetricConfig {
     unit: Option<Unit>,
-    description: Option<&'static str>,
+    description: Option<metrics::SharedString>,
 }
 
 #[derive(Debug)]
@@ -423,9 +428,7 @@ fn accept_datum(
             if unit.is_some() {
                 metric_config.unit = unit;
             }
-            if description.is_some() {
-                metric_config.description = description;
-            }
+            metric_config.description = Some(description);
         }
 
         Value::Counter(value) => {
@@ -700,49 +703,110 @@ impl Collector {
     }
 }
 
+struct CounterHandle {
+    key: Key,
+    sender: mpsc::Sender<Datum>,
+}
+
+struct GaugeHandle {
+    key: Key,
+    sender: mpsc::Sender<Datum>,
+}
+
+struct HistogramHandle {
+    key: Key,
+    sender: mpsc::Sender<Datum>,
+}
+
 impl Recorder for RecorderHandle {
-    fn register_counter(&self, key: &Key, unit: Option<Unit>, description: Option<&'static str>) {
-        let _ = self.sender.try_send(Datum {
+    fn register_counter(&self, key: &Key) -> metrics::Counter {
+        metrics::Counter::from_arc(Arc::new(CounterHandle {
             key: key.clone(),
+            sender: self.sender.clone(),
+        }))
+    }
+
+    fn describe_counter(
+        &self,
+        key: KeyName,
+        unit: Option<Unit>,
+        description: metrics::SharedString,
+    ) {
+        let _ = self.sender.try_send(Datum {
+            key: Key::from_name(key),
             value: Value::Register { unit, description },
         });
     }
 
-    fn register_gauge(&self, key: &Key, unit: Option<Unit>, description: Option<&'static str>) {
-        let _ = self.sender.try_send(Datum {
+    fn register_gauge(&self, key: &Key) -> metrics::Gauge {
+        metrics::Gauge::from_arc(Arc::new(GaugeHandle {
             key: key.clone(),
+            sender: self.sender.clone(),
+        }))
+    }
+
+    fn describe_gauge(&self, key: KeyName, unit: Option<Unit>, description: metrics::SharedString) {
+        let _ = self.sender.try_send(Datum {
+            key: Key::from_name(key),
             value: Value::Register { unit, description },
         });
     }
 
-    fn register_histogram(&self, key: &Key, unit: Option<Unit>, description: Option<&'static str>) {
-        let _ = self.sender.try_send(Datum {
+    fn register_histogram(&self, key: &Key) -> metrics::Histogram {
+        metrics::Histogram::from_arc(Arc::new(HistogramHandle {
             key: key.clone(),
+            sender: self.sender.clone(),
+        }))
+    }
+
+    fn describe_histogram(
+        &self,
+        key: KeyName,
+        unit: Option<Unit>,
+        description: metrics::SharedString,
+    ) {
+        let _ = self.sender.try_send(Datum {
+            key: Key::from_name(key),
             value: Value::Register { unit, description },
         });
     }
+}
 
-    fn increment_counter(&self, key: &Key, value: u64) {
+impl CounterFn for CounterHandle {
+    fn increment(&self, value: u64) {
         let _ = self.sender.try_send(Datum {
-            key: key.clone(),
+            key: self.key.clone(),
             value: Value::Counter(value),
         });
     }
 
-    fn update_gauge(&self, key: &Key, value: GaugeValue) {
-        let _ = self.sender.try_send(Datum {
-            key: key.clone(),
-            value: Value::Gauge(value),
-        });
+    fn absolute(&self, value: u64) {
+        todo!()
+    }
+}
+
+impl GaugeFn for GaugeHandle {
+    fn increment(&self, value: f64) {
+        todo!()
     }
 
-    fn record_histogram(&self, key: &Key, value: f64) {
-        if value.is_finite() {
-            let _ = self.sender.try_send(Datum {
-                key: key.clone(),
-                value: Value::Histogram(HistogramValue::new(value).unwrap()),
-            });
-        }
+    fn decrement(&self, value: f64) {
+        todo!()
+    }
+
+    fn set(&self, value: f64) {
+        todo!()
+    }
+}
+
+impl HistogramFn for HistogramHandle {
+    fn record(&self, value: f64) {
+        let Ok(value) = NotNan::try_from(value) else {return};
+
+        let _ = self.sender.try_send(Datum {
+            key: self.key.clone(),
+            value: Value::Histogram(value),
+        });
     }
 }
 
