@@ -106,9 +106,15 @@ enum Value {
         unit: Option<Unit>,
         description: metrics::SharedString,
     },
-    Counter(u64),
+    Counter(CounterOp),
     Gauge(GaugeValue),
     Histogram(HistogramValue),
+}
+
+#[derive(Debug)]
+enum CounterOp {
+    Increment(u64),
+    Set(u64),
 }
 
 #[derive(Clone, Debug, Default)]
@@ -431,11 +437,14 @@ fn accept_datum(
             metric_config.description = Some(description);
         }
 
-        Value::Counter(value) => {
+        Value::Counter(op) => {
             let aggregate = slot.entry(datum.key).or_default();
             let counter = &mut aggregate.counter;
             counter.sample_count += 1;
-            counter.sum += value;
+            match op {
+                CounterOp::Increment(value) => counter.sum += value,
+                CounterOp::Set(value) => counter.sum = value,
+            }
         }
         Value::Gauge(gauge_value) => {
             let aggregate = slot.entry(datum.key).or_default();
@@ -776,26 +785,38 @@ impl CounterFn for CounterHandle {
     fn increment(&self, value: u64) {
         let _ = self.sender.try_send(Datum {
             key: self.key.clone(),
-            value: Value::Counter(value),
+            value: Value::Counter(CounterOp::Increment(value)),
         });
     }
 
     fn absolute(&self, value: u64) {
-        todo!()
+        let _ = self.sender.try_send(Datum {
+            key: self.key.clone(),
+            value: Value::Counter(CounterOp::Set(value)),
+        });
     }
 }
 
 impl GaugeFn for GaugeHandle {
     fn increment(&self, value: f64) {
-        todo!()
+        let _ = self.sender.try_send(Datum {
+            key: self.key.clone(),
+            value: Value::Gauge(GaugeValue::Increment(value)),
+        });
     }
 
     fn decrement(&self, value: f64) {
-        todo!()
+        let _ = self.sender.try_send(Datum {
+            key: self.key.clone(),
+            value: Value::Gauge(GaugeValue::Decrement(value)),
+        });
     }
 
     fn set(&self, value: f64) {
-        todo!()
+        let _ = self.sender.try_send(Datum {
+            key: self.key.clone(),
+            value: Value::Gauge(GaugeValue::Absolute(value)),
+        });
     }
 }
 
@@ -976,6 +997,8 @@ mod tests {
     fn should_handle_nan_in_record_histogram() {
         let (sender, _receiver) = mpsc::channel(1);
         let recorder = RecorderHandle { sender };
-        recorder.record_histogram(&Key::from_static_name("my_metric"), f64::NAN);
+        recorder
+            .register_histogram(&Key::from_static_name("my_metric"))
+            .record(f64::NAN);
     }
 }
