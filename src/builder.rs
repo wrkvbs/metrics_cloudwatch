@@ -4,6 +4,7 @@ use aws_config::BehaviorVersion;
 use aws_sdk_cloudwatch::Client;
 use aws_types::region::Region;
 use futures_util::{future, FutureExt, Stream};
+use metrics::Recorder;
 
 use crate::{
     collector::{self, CloudWatch, Config, Resolution},
@@ -138,7 +139,7 @@ impl Builder {
         self,
         set_boxed_recorder: fn(
             Box<dyn metrics::Recorder>,
-        ) -> Result<(), metrics::SetRecorderError<()>>,
+        ) -> Result<(), metrics::SetRecorderError<Box<dyn Recorder>>>,
     ) -> Result<(), Error> {
         collector::init(set_boxed_recorder, self.build_config()?);
         Ok(())
@@ -152,7 +153,8 @@ impl Builder {
         self,
         set_boxed_recorder: fn(
             Box<dyn metrics::Recorder>,
-        ) -> Result<(), metrics::SetRecorderError<()>>,
+        )
+            -> Result<(), metrics::SetRecorderError<Box<dyn metrics::Recorder>>>,
     ) -> Result<(), Error> {
         collector::init_future(set_boxed_recorder, self.build_config()?).await
     }

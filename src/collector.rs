@@ -171,7 +171,9 @@ pub struct RecorderHandle {
 }
 
 pub(crate) fn init(
-    set_boxed_recorder: fn(Box<dyn Recorder>) -> Result<(), metrics::SetRecorderError<()>>,
+    set_boxed_recorder: fn(
+        Box<dyn Recorder>,
+    ) -> Result<(), metrics::SetRecorderError<Box<dyn Recorder>>>,
     config: Config,
 ) {
     let _ = thread::spawn(move || {
@@ -189,11 +191,14 @@ pub(crate) fn init(
 }
 
 pub(crate) async fn init_future(
-    set_boxed_recorder: fn(Box<dyn Recorder>) -> Result<(), metrics::SetRecorderError<()>>,
+    set_boxed_recorder: fn(
+        Box<dyn Recorder>,
+    ) -> Result<(), metrics::SetRecorderError<Box<dyn Recorder>>>,
     config: Config,
 ) -> Result<(), Error> {
     let (recorder, task) = new(config);
-    set_boxed_recorder(Box::new(recorder)).map_err(Error::SetRecorder)?;
+    let recorder = Box::new(recorder);
+    set_boxed_recorder(recorder).map_err(|err| Error::SetRecorder(err))?;
     task.await;
     Ok(())
 }

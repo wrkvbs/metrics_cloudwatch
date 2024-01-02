@@ -1,9 +1,11 @@
 use std::{error, fmt};
 
+use metrics::Recorder;
+
 #[derive(Debug)]
 pub enum Error {
     BuilderIncomplete(String),
-    SetRecorder(metrics::SetRecorderError<()>),
+    SetRecorder(metrics::SetRecorderError<Box<dyn Recorder>>),
     Collector,
 }
 
