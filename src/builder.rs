@@ -136,7 +136,9 @@ impl Builder {
     /// accidentally using a different `metrics` version than is used in this crate.
     pub fn init_thread(
         self,
-        set_boxed_recorder: fn(Box<dyn metrics::Recorder>) -> Result<(), metrics::SetRecorderError>,
+        set_boxed_recorder: fn(
+            Box<dyn metrics::Recorder>,
+        ) -> Result<(), metrics::SetRecorderError<()>>,
     ) -> Result<(), Error> {
         collector::init(set_boxed_recorder, self.build_config()?);
         Ok(())
@@ -148,7 +150,9 @@ impl Builder {
     /// accidentally using a different `metrics` version than is used in this crate.
     pub async fn init_future(
         self,
-        set_boxed_recorder: fn(Box<dyn metrics::Recorder>) -> Result<(), metrics::SetRecorderError>,
+        set_boxed_recorder: fn(
+            Box<dyn metrics::Recorder>,
+        ) -> Result<(), metrics::SetRecorderError<()>>,
     ) -> Result<(), Error> {
         collector::init_future(set_boxed_recorder, self.build_config()?).await
     }

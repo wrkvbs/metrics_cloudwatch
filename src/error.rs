@@ -3,7 +3,7 @@ use std::{error, fmt};
 #[derive(Debug)]
 pub enum Error {
     BuilderIncomplete(String),
-    SetRecorder(metrics::SetRecorderError),
+    SetRecorder(metrics::SetRecorderError<()>),
     Collector,
 }
 

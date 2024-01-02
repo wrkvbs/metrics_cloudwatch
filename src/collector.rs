@@ -28,7 +28,7 @@ use {
     tokio::sync::mpsc,
 };
 
-use metrics::{CounterFn, GaugeFn, HistogramFn, KeyName};
+use metrics::{CounterFn, GaugeFn, HistogramFn, KeyName, Metadata};
 use ordered_float::NotNan;
 
 use crate::{error::Error, BoxFuture};
@@ -171,7 +171,7 @@ pub struct RecorderHandle {
 }
 
 pub(crate) fn init(
-    set_boxed_recorder: fn(Box<dyn Recorder>) -> Result<(), metrics::SetRecorderError>,
+    set_boxed_recorder: fn(Box<dyn Recorder>) -> Result<(), metrics::SetRecorderError<()>>,
     config: Config,
 ) {
     let _ = thread::spawn(move || {
@@ -189,7 +189,7 @@ pub(crate) fn init(
 }
 
 pub(crate) async fn init_future(
-    set_boxed_recorder: fn(Box<dyn Recorder>) -> Result<(), metrics::SetRecorderError>,
+    set_boxed_recorder: fn(Box<dyn Recorder>) -> Result<(), metrics::SetRecorderError<()>>,
     config: Config,
 ) -> Result<(), Error> {
     let (recorder, task) = new(config);
@@ -722,7 +722,7 @@ struct HistogramHandle {
 }
 
 impl Recorder for RecorderHandle {
-    fn register_counter(&self, key: &Key) -> metrics::Counter {
+    fn register_counter(&self, key: &Key, _meta: &Metadata<'_>) -> metrics::Counter {
         metrics::Counter::from_arc(Arc::new(CounterHandle {
             key: key.clone(),
             sender: self.sender.clone(),
@@ -741,7 +741,7 @@ impl Recorder for RecorderHandle {
         });
     }
 
-    fn register_gauge(&self, key: &Key) -> metrics::Gauge {
+    fn register_gauge(&self, key: &Key, _meta: &Metadata<'_>) -> metrics::Gauge {
         metrics::Gauge::from_arc(Arc::new(GaugeHandle {
             key: key.clone(),
             sender: self.sender.clone(),
@@ -755,7 +755,7 @@ impl Recorder for RecorderHandle {
         });
     }
 
-    fn register_histogram(&self, key: &Key) -> metrics::Histogram {
+    fn register_histogram(&self, key: &Key, _meta: &Metadata<'_>) -> metrics::Histogram {
         metrics::Histogram::from_arc(Arc::new(HistogramHandle {
             key: key.clone(),
             sender: self.sender.clone(),
